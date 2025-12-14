@@ -139,5 +139,5 @@ def lancer_all_plot(f : str, xMin : float, xMax : float, nbPoints : int = 150, n
 #================= MAIN ========================
 
 if __name__=="__main__" :
-    lancer_all_plot("x**n", -2, 2, nMin=-3,nMax=3, nIncr=0.01, pause=0.05, yMin=-2, yMax=2)
+    lancer_all_plot("n+x", -2, 2, nMin=-3,nMax=3, nIncr=0.01, pause=0.05, yMin=-2, yMax=2)
     w.mainloop()
