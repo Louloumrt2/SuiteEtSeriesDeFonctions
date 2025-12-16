@@ -1,0 +1,10 @@
+{
+    "theme": "cyborg",
+    "default_param": {
+        "xMin": 1.0,
+        "xMax": 10.0,
+        "yMin": -10.0,
+        "yMax": 10.0,
+        "vitesseGeneration": 0.1
+    }
+}

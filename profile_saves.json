@@ -1,0 +1,16 @@
+{
+    "theme": "darkly",
+    "default_param": {
+        "xMin": "-5",
+        "xMax": "5",
+        "yMin": "-1",
+        "yMax": "1",
+        "vitesseGeneration": 0.1
+    },
+    "last_func": {
+        "fonction": "sin(x) * cos(n)",
+        "minN": "1",
+        "maxN": "10",
+        "incrN": "0.1"
+    }
+}

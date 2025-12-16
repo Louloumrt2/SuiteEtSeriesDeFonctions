@@ -11,8 +11,12 @@ import tkinter as tk
 import ttkbootstrap as ttk # pour avoir de plus beaux menus
 from myttkfuncs import *
 
+import os 
+import json
+import sys
+
 fonctions_math = { name: getattr(math, name) for name in dir(math) if not name.startswith("_") } # ca met toutes les fonctions de math dans un dictionnaire nom : fonction (sauf pour les )
-fonctions_autorise_python = dict(int=int, max=max, min=min)
+fonctions_autorise_python = dict(int=int, max=max, min=min, sum=sum, abs=abs)
 
 
 math_globals = {
@@ -34,7 +38,7 @@ def range_(min, max=None, incr=1) : # j'ai adapté le range pour qu'il puisse pr
         min, max, incr = 0, min, 1
 
     x = min
-    while x<max :
+    while x<=max :
         yield x 
         x += incr 
 
@@ -85,19 +89,26 @@ def to_float(val, for_incr=True) :
 
 #================= VARIABLES =====================
 
-xMin,xMax,yMin,yMax = (ttk.DoubleVar(value=default) for default in (-10,10,-10,10)) # bordure de la fenetre plot
-nMin, nMax = ttk.IntVar(value=1),tk.IntVar(value=15)
-incrN = ttk.DoubleVar(value=1.) # de combien augmente n à chaque itération (pour les suites, il garde 1, pour les série, on choisis un nombre entre 0 et 1 exclus, pour obtenir les variations quand n est réel)
+xMin,xMax,yMin,yMax = (ttk.StringVar(value=default) for default in ("-10","10","-10","10")) # bordure de la fenetre plot (c'est des strings car c'est utilisé dans des input utilisateur (mais ne deviendra jamais autre chose que des strings))
+#nMin, nMax = ttk.IntVar(value=1),tk.IntVar(value=15)
+#incrN = ttk.DoubleVar(value=1.) # de combien augmente n à chaque itération (pour les suites, il garde 1, pour les série, on choisis un nombre entre 0 et 1 exclus, pour obtenir les variations quand n est réel)
 
 pointsGeneres = ttk.IntVar(value=100) # Plus il y a de points générés, moins la courbe est lisse (mais + de calculs derriere)
 vitesseGeneration = ttk.DoubleVar(value=0.1) # temps de pause entre chaque itération (chaque fonction n)
 
 dicoTypeDeCroissance = {"linéaire" : range_, # Par défaut, n varie de nMin à nMax (via un range)
                         "exponentielle" : croissanceExpo} 
-fonction = ttk.StringVar(value="x**n")
+fonction = ttk.StringVar(value="x/(x**2+n)")
 
+# Variables pour lui la création du plot a l'interface graphique
 error = ttk.StringVar(value="")
-continueTracing = ttk.BooleanVar(value=True)
+stop = ttk.BooleanVar(value=False) # bloque la continuations du plot
+nAct = ttk.DoubleVar(value=0.0)
+nMaxAct = ttk.DoubleVar(value=0)
+
+style = ttk.Style()
+PADX = 30
+LINE = dict(fill="x", expand=True, padx=PADX)
 
 #============== FONCTIONS MATHS =================
 
@@ -139,13 +150,29 @@ def lancer_all_plot(f : str, xMin : float, xMax : float, nbPoints : int = 150, n
     plt.clf()
     plt.ylim(yMin,yMax)
     plt.xlim(xMin,xMax) 
+
+    nMaxAct.set(nMax)
+    progress["maximum"] = nMax-nMin
+    stop.set(False)
+
     for n in nCroissance(nMin, nMax, nIncr) :
         Valeurs, Erreurs  = eval_func(f, n, xMin, xMax, nbPoints)
         if Erreurs :
             print("Erreurs rencontrées pour n=",n,":",Erreurs)
-        tracer(Valeurs, valeur_to_hex(n, nMin, nMax))
 
-        plt.pause(pause)
+        tracer(Valeurs, valeur_to_hex(n, nMin, nMax))
+        nAct.set(n)
+        progress["value"] = n-nMin
+
+        
+
+        if stop.get() : 
+            stop.set(False)
+            break
+        else :
+            plt.pause(pause)
+    else :
+        progress["value"] = nMax-nMin # else pour un for : aucun break n'a eu lieu
     plt.show()
 
 #============ FONCTIONS INTERFACE ===============
@@ -159,11 +186,87 @@ themes = [
         "cyborg",
         "minty"]
 
-def changer_theme():
-    temp = themes.pop(0)
-    themes.append(temp)
-    style = ttk.Style()
-    style.theme_use(themes[0])
+def next_theme() :
+    act_name = style.theme.name
+    if act_name in themes : return themes[(themes.index(act_name)+1) % len(themes)] 
+    else : return "darkly"
+
+def theme_act() :
+    return style.theme.name
+
+def changer_theme(theme = None):
+    style.theme_use(theme or next_theme())
+
+
+#====================== CONFIG ======================
+
+
+def get_user_profil() :
+    return {"theme": theme_act(),
+            "default_param" : {
+                "xMin" : xMin.get(), "xMax": xMax.get(), "yMin" : yMin.get(), "yMax" : yMax.get(), "vitesseGeneration" : vitesseGeneration.get()
+            },
+            "last_func": act_func_dict()}
+
+def save_user_profile() :
+    with open("profile_saves.json", "w", encoding="utf-8") as f:
+        json.dump(get_user_profil(), f, indent=4, ensure_ascii=False)
+
+def load_config():
+
+    # Obtention du profil
+
+    try:
+        with open("profile_saves.json", "r", encoding="utf-8") as f:
+            config = json.load(f)
+    except json.JSONDecodeError | FileNotFoundError :
+        config = {}
+
+    # Chargement des données:
+    if config.get("theme") : changer_theme(config.get("theme"))
+
+    if (param := config.get("default_param")) :
+        if "xMin" in param: xMin.set(param["xMin"])
+        if "xMax" in param: xMax.set(param["xMax"])
+        if "yMin" in param: yMin.set(param["yMin"])
+        if "yMax" in param: yMax.set(param["yMax"])
+        if "vitesseGeneration" in param: vitesseGeneration.set(param["vitesseGeneration"])
+    
+    if "last_func" in config : update_act_func(config["last_func"])
+
+
+    return config
+
+
+def act_func_dict() :
+    res = {}
+
+    res["fonction"] = fonction.get()
+    res["minN"] = entry_nmin.get()
+    res["maxN"] = entry_nmax.get()
+    res["incrN"] = nIncrVar.get()
+
+    return res 
+
+def update_act_func(dict) :
+    print(dict)
+    if "fonction" in dict : fonction.set(dict["fonction"])
+    if "minN" in dict : entry_nmin.set(dict["minN"])
+    if "maxN" in dict : entry_nmax.set(dict["maxN"])
+    if "incrN" in dict : nIncrVar.set(dict["incrN"])
+    
+
+
+
+def on_close():
+    save_user_profile()
+    stop.set(True)
+    plt.close()
+    w.destroy()
+
+def stop_plot() :
+    stop.set(True)
+
 
 
 #================ INTERFACE =====================
@@ -196,33 +299,121 @@ onglets.add(sauvegardes, text="Sauvegardes")
 
 onglets.pack(fill="x")
 
-# Fenetre de lanceur
+space(lanceur, 10)
+
+#   #   #    Fenetre de lanceur
 lab_info_lanceur = ttk.Label(lanceur,text="Voici le traceur de fonction\nEntrez votre fonction et cliquez sur lancer pour afficher la suite (ou série de fonction)")
-lab_info_lanceur.pack(expand=True, fill="x")
+lab_info_lanceur.pack(**LINE)
 
 fonction_entry_frame, _, _ = gen_entry_field(lanceur, "Fn(x) = ",sep_size=1, str_var=fonction )
-fonction_entry_frame.pack(fill="x")
+fonction_entry_frame.pack(**LINE)
 
 space(lanceur, 10)
 
-frame_nIncr = ttk.Frame(lanceur)
-frame_nIncr.pack(fill="x")
-
-labelNIncr = ttk.Label(frame_nIncr, text="Entrez le pas d'incrémentation de n (laissez à 1 si vous étudiez une suite de fonction)")
-
+# Min/Max de N
 vcmd = w.register(is_float)
-entry_default = ttk.StringVar(value="1")
-nIncrEntry = ttk.Entry(frame_nIncr,validate='key',textvariable=entry_default, validatecommand=(vcmd, "%P"))
+min_max_n = ttk.Frame(lanceur)
+
+min_n_f = ttk.Frame(min_max_n)
+minNLabel = ttk.Label(min_n_f, text="Minimum de n :")
+entry_nmin = ttk.StringVar(value="1")
+nMinEntry = ttk.Entry(min_n_f,validate='key',textvariable=entry_nmin, validatecommand=(vcmd, "%P"))
+nMinEntry.pack(side='right', fill='x', expand=True)
+minNLabel.pack(side='left')
+
+max_n_f = ttk.Frame(min_max_n)
+maxNLabel = ttk.Label(max_n_f, text="Maximum de n :")
+entry_nmax = ttk.StringVar(value="15")
+nMaxEntry = ttk.Entry(max_n_f,validate='key',textvariable=entry_nmax, validatecommand=(vcmd, "%P"))
+nMaxEntry.pack(side='right', fill='x', expand=True)
+maxNLabel.pack(side='left')
+
+min_n_f.pack(side="left", fill="x", padx=15)
+max_n_f.pack(side="right", fill="x", padx=15)
+min_max_n.pack(**LINE)
+
+space(lanceur, 10)
+
+# Incrémenteur N
+frame_nIncr = ttk.Frame(lanceur)
+frame_nIncr.pack(**LINE)
+
+labelNIncr = ttk.Label(frame_nIncr, text="Incrémentation de n (laissez à 1 si vous étudiez une suite de fonction)")
+
+nIncrVar = ttk.StringVar(value="1")
+nIncrEntry = ttk.Entry(frame_nIncr,validate='key',textvariable=nIncrVar, validatecommand=(vcmd, "%P"))
 nIncrEntry.pack(side='right', fill='x', expand=True)
 labelNIncr.pack(side='left')
 
+space(lanceur, 20)
 
-go_button = ttk.Button(lanceur, text="Go", command= lambda : lancer_all_plot(fonction.get(), xMin.get(), xMax.get(), nMin=nMin.get(),nMax=nMax.get(), nIncr=to_float(nIncrEntry.get()), pause=vitesseGeneration.get(), yMin=yMin.get(), yMax=yMax.get()))
+# Lancer / Arreter le tracer
+go_stop_frame = ttk.Frame(lanceur)
+go_button = ttk.Button(go_stop_frame, text="Go", command= lambda : lancer_all_plot(fonction.get(),
+                                                                                   xMin=to_float(xMin.get()),
+                                                                                   xMax=to_float(xMax.get()),
+                                                                                   nMin=to_float(entry_nmin.get()),
+                                                                                   nMax=to_float(entry_nmax.get()),
+                                                                                   nIncr=to_float(nIncrVar.get()),
+                                                                                   pause=vitesseGeneration.get(),
+                                                                                   yMin=to_float(yMin.get()),
+                                                                                   yMax=to_float(yMax.get())))
+stop_button = ttk.Button(go_stop_frame, text="STOP", command=stop_plot)
+progress = ttk.Progressbar(
+    go_stop_frame,
+    orient="horizontal",
+    length=300,
+    mode="determinate"
+)
+stop_button.pack(padx=10, side="right")
+progress.pack(padx=10, side="right")
+go_button.pack(padx=10, side="right")
+go_stop_frame.pack()
+
+space(lanceur, 10)
 
 
-go_button.pack(fill='x', padx=30)
+#   #   # Fenetre des parametres de plot
 
-# Fenetre des parametres de plot
+# Min/Max de x
+min_max_x = ttk.Frame(p_defaut)
+
+min_x_f = ttk.Frame(min_max_x)
+minXLabel = ttk.Label(min_x_f, text="Minimum de x :")
+xMinEntry = ttk.Entry(min_x_f,validate='key',textvariable=xMin, validatecommand=(vcmd, "%P"))
+xMinEntry.pack(side='right', fill='x', expand=True)
+minXLabel.pack(side='left')
+
+max_x_f = ttk.Frame(min_max_x)
+maxXLabel = ttk.Label(max_x_f, text="Maximum de x :")
+xMaxEntry = ttk.Entry(max_x_f,validate='key',textvariable=xMax, validatecommand=(vcmd, "%P"))
+xMaxEntry.pack(side='right', fill='x', expand=True)
+maxXLabel.pack(side='left')
+
+min_x_f.pack(side="left", fill="x", padx=15)
+max_x_f.pack(side="right", fill="x", padx=15)
+min_max_x.pack(**LINE)
+
+# Min/Max de y
+min_max_y = ttk.Frame(p_defaut)
+
+min_y_f = ttk.Frame(min_max_y)
+minYLabel = ttk.Label(min_y_f, text="Minimum de y :")
+yMinEntry = ttk.Entry(min_y_f,validate='key',textvariable=yMin, validatecommand=(vcmd, "%P"))
+yMinEntry.pack(side='right', fill='x', expand=True)
+minYLabel.pack(side='left')
+
+max_y_f = ttk.Frame(min_max_y)
+maxYLabel = ttk.Label(max_y_f, text="Maximum de y :")
+yMaxEntry = ttk.Entry(max_y_f,validate='key',textvariable=yMax, validatecommand=(vcmd, "%P"))
+yMaxEntry.pack(side='right', fill='x', expand=True)
+maxYLabel.pack(side='left')
+
+min_y_f.pack(side="left", fill="x", padx=15)
+max_y_f.pack(side="right", fill="x", padx=15)
+min_max_y.pack(**LINE)
+
+
 
 
 
@@ -240,7 +431,11 @@ switch_theme.pack(fill="x")
 
 if __name__=="__main__" :
     # lancer_all_plot("n+x", -2, 2, nMin=-3,nMax=3, nIncr=0.01, pause=0.05, yMin=-2, yMax=2)
+
+    w.protocol("WM_DELETE_WINDOW", on_close)
+    profile_info = load_config()
     w.mainloop()
+    
 
     
 
