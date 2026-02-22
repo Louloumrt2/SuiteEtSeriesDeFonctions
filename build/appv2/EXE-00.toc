@@ -76,7 +76,7 @@
  [],
  False,
  False,
- 1765922368,
+ 1767037636,
  [('run.exe',
    'c:\\Users\\louis\\Documents\\TrainingPython\\AppliSuiteSerieFonctions\\SuiteEtSeriesDeFonctions\\.venv\\Lib\\site-packages\\PyInstaller\\bootloader\\Windows-64bit-intel\\run.exe',
    'EXECUTABLE')],

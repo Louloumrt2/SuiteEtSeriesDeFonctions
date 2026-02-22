@@ -1,0 +1,7 @@
+{"last_func": {
+        "fonction": "sin(x) * cos(n) + x",
+        "minN": "1",
+        "maxN": "10",
+        "incrN": "0.1"
+    }
+}

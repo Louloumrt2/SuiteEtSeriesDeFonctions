@@ -5,7 +5,7 @@ a = Analysis(
     ['appv2.py'],
     pathex=[],
     binaries=[],
-    datas=[('profile_saves.json', '.')],
+    datas=[('user_data', 'user_data')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
