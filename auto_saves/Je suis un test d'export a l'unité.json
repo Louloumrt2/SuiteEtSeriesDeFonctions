@@ -1,0 +1,12 @@
+{
+    "nom": "Je suis un test d'export a l'unit\u00e9",
+    "fonction": "x/n",
+    "minN": "1",
+    "maxN": "100",
+    "incrN": "1",
+    "minX": "-20",
+    "maxX": "20",
+    "minY": "-10",
+    "maxY": "10",
+    "date": ""
+}

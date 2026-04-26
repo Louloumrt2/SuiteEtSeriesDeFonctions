@@ -35,6 +35,8 @@ math_globals = {
 w = ttk.Window(themename="darkly")
 w.title("Visualiseur de suites et séries de fonctions")
 
+name = ttk.StringVar(value="")
+
 #============= FUNCTIONS UTILES ===================
 def range_(min, max=None, incr=1) : # j'ai adapté le range pour qu'il puisse prendre des decimales
     if min and max is None :
@@ -218,6 +220,17 @@ def get_user_profil() :
 def save_user_profile() :
     with open("user_data/profile_saves.json", "w", encoding="utf-8") as f:
         json.dump(get_user_profil(), f, indent=4, ensure_ascii=False)
+    
+    files = {}
+    for file, name in imports :
+        if file not in files :
+            files[file] = [imports[(file, name)]]
+        else :
+            files[file].append(imports[(file, name)])
+
+    for file in files :
+        with open(f"json_saves/{file}", "w", encoding="utf-8") as f:
+            json.dump(files[file], f, indent=4, ensure_ascii=False)
 
 def load_config():
 
@@ -255,7 +268,7 @@ def load_config():
 
 def act_func_dict() :
     res = {}
-
+    
     res["fonction"] = fonction.get()
     res["minN"] = entry_nmin.get()
     res["maxN"] = entry_nmax.get()
@@ -264,6 +277,9 @@ def act_func_dict() :
     res["maxX"] = xMax.get()
     res["minY"] = yMin.get()
     res["maxY"] = yMax.get()
+    res["date"] = str(datetime.datetime.now())
+    res["name"] = name.get() or (f"{res["fonction"]}" + "|" + (res["date"] if res["date"] else ""))
+    
 
     return res 
 
@@ -276,9 +292,30 @@ def update_act_func(dict) :
     if "maxX" in dict : xMax.set(dict["maxX"])
     if "minY" in dict : yMin.set(dict["minY"])
     if "maxY" in dict : yMax.set(dict["maxY"])
+    if "name" in dict :
+        name.set(dict["name"])
+        fonction_chargee.configure(text="Suite/Série de fonctions chargées : "+dict["name"])
 
 
-    
+def load_imports() :
+    imports = {}
+    for file in os.listdir("json_saves") :
+
+        try:
+            with open(f"json_saves/{file}", "r", encoding="utf-8") as f:
+                some_funcs = json.load(f) # some_funcs contient une ou plusieurs fonctions sous forme d'une liste de dictionnaires
+                
+                for func in some_funcs :
+                    name_ = func.get("name")
+                    if name :
+                        imports[(file,name_)] = func 
+            
+        except json.JSONDecodeError :
+            pass
+        except FileNotFoundError :
+            pass
+        
+    return imports
 
 
 
@@ -309,9 +346,10 @@ def remove_from_favorite(nom : str) :
 
 def add_to_historique(dico_func : dict, func_name : str, date : str) -> None :
     # Ouvrir profile_saves et ajouter la fonction au dictionnaire "historique"
-
+  
+    dico_func["date"] = date
     if len(historique_data) > 0 and is_same(list(historique_data.values())[-1], dico_func) : return # ne pas ajouter une fonction identique à la fonction actuelle
-    historique_data[func_name] = {"date": date, **dico_func}
+    historique_data[func_name] = {**dico_func}
     load_historique(historique)
     try : 
         load_historique(frame_quick_load)
@@ -320,16 +358,18 @@ def add_to_historique(dico_func : dict, func_name : str, date : str) -> None :
 
 
 def reset_act_function() -> None:
-    update_act_func({"fonction":"x*n", "minN":"0", "maxN":"100", "incrN":1})
+    
+    update_act_func({"fonction":"x*n", "minN":"0", "maxN":"100", "incrN":1, "name":""})
+    fonction_chargee.configure(text='Aucune fonction chargée.')
 
 
 def create_new_function() :
     # Ajouer la fonction actuelle à l'historique
     dico_act_func = act_func_dict()
     date = str(datetime.datetime.now())
-    name = dico_act_func.get("fonction","error_function")+f" | "+date
+    name_ = name.get() or dico_act_func.get("fonction","error_function")+f" | "+date
     
-    add_to_historique(dico_act_func, name, date)
+    add_to_historique(dico_act_func, name_, date)
 
     # Remettre "à plat" la fonction actuelle
     reset_act_function()
@@ -337,46 +377,7 @@ def create_new_function() :
 def is_same(func1 : dict, func2 : dict) -> bool :
     return all(func1.get(key) == func2.get(key) for key in ("fonction", "minN", "maxN", "incrN"))
 
-# J'ai créer cette classe pour avoir un label sépcial pour le nom des suites/séries de fonctions qui permet d'éditer le nom de celles-ci en double cliquant dessus
-class editable_label(ttk.Frame):
-    def __init__(self, master, text="", lock_on_edit : list[ttk.Button] |None = None, **kwargs):
-        super().__init__(master, **kwargs)
-
-        self.lock_on_edit = lock_on_edit or []
-        self.last_name = text
-        self.new_name = ttk.StringVar(value=text)
-        self.label = ttk.Label(self, textvariable=self.new_name)
-        self.entry = ttk.Entry(self, textvariable=self.new_name)
-
-        self.label.pack(fill="x", expand=True)
-        self.label.bind("<Double-1>", self.switch_to_entry) # Double clic gauche
-        self.entry.bind("<Return>", self.switch_to_label) # Touche Entrée
-        self.entry.bind("<FocusOut>", self.switch_to_label) # Perte du focus
-
-    def switch_to_entry(self, event=None):
-        for lock in self.lock_on_edit :
-            lock.config(state="disabled") # Eviter de pouvoir modifier les favoris/supprimer etc. pendant l'édition
-
-        self.last_name = self.get() # Sauvegarder le nom avant modification
-        self.label.pack_forget()
-        self.entry.pack(fill="x", expand=True)
-        self.entry.focus_set() # Mettre le focus sur l'entrée
-
-    def switch_to_label(self, event=None):
-        self.entry.pack_forget()
-        for lock in self.lock_on_edit :
-            lock.config(state="enabled")
-        
-        # Changer la fonction ayant le précédant nom par le nouveau nom
-        changer_nom_fonction(self.last_name, self.get()) # Cette fonction change partout le nom de la suite/serie de fonctions
-        self.label.pack(fill="x", expand=True)
-        self.last_name = self.get() # Mettre à jour le dernier nom
-
-    def get(self):
-        return self.new_name.get()
-
-    def set(self, text):
-        self.new_name.set(text)
+from editablelabel import editable_sfunc_name
 
 def load_historique(frame_histo : ttk.Frame) :
 
@@ -490,12 +491,33 @@ def refresh_all() :
     load_favoris(preferes)
     
 def changer_nom_fonction(old_name : str, new_name : str) :
+    
+    if name.get() == old_name :
+        name.set(new_name)
+    
+
+
+
     if old_name in historique_data :
         historique_data[new_name] = historique_data.pop(old_name)
+        historique_data[new_name]["name"] = new_name
     if old_name in favoris_data :
         favoris_data[new_name] = favoris_data.pop(old_name)
+        favoris_data[new_name]["name"] = new_name
+
+    if old_name in imports :
+        file = None
+        for f, name_ in imports :
+            if name_ == old_name :
+                file = f
+                break
+        if file :
+            imports[(file, new_name)] = imports.pop((file, old_name))
+            imports[(file, new_name)]["name"] = new_name
     
     refresh_all()
+
+
 
 
 def load_favoris(frame_fav : ttk.Frame) :
@@ -562,6 +584,27 @@ def load_favoris(frame_fav : ttk.Frame) :
     inner_frame.update_idletasks()
     canvas.config(scrollregion=canvas.bbox("all"))
 
+def load_imports_ui(frame_imports : ttk.Frame) :
+    # Petit nettoyage de printemps
+    for widget in frame_imports.winfo_children() :
+        widget.destroy()
+
+    # On met une scrollbar pour défiler chaque fonction des favoris
+    scroll_imports = ttk.Scrollbar(frame_imports)
+    scroll_imports.pack(side="right", fill="y")
+
+    canvas = ttk.Canvas(frame_imports, yscrollcommand=scroll_imports.set)
+    canvas.pack(side="left", fill="both", expand=True)
+    scroll_imports.config(command=canvas.yview)
+
+    # Frame dans le canvas
+    inner_frame = ttk.Frame(canvas)
+    canvas.create_window((0, 0), window=inner_frame, anchor="nw", width=frame_imports.winfo_width()-10)
+
+    for (file, func_name), func_data in sorted(list(load_imports().items()), key=lambda item: item[1].get("date",""), reverse=True) :
+        ...
+
+
 
 #================ INTERFACE =====================
 
@@ -618,10 +661,18 @@ space(lanceur, 10)
 lab_info_lanceur = ttk.Label(lanceur,text="Voici le traceur de fonction\nEntrez votre fonction et cliquez sur lancer pour afficher la suite (ou série de fonction)")
 lab_info_lanceur.pack(**LINE)
 
+space(lanceur, 10)
+
+(fonction_chargee := ttk.Label(lanceur, text="Aucune fonction chargée.")).pack(**LINE)
+
+space(lanceur, 10)
+
 fonction_entry_frame, _, _ = gen_entry_field(lanceur, "Fn(x) = ",sep_size=1, str_var=fonction )
 fonction_entry_frame.pack(**LINE)
 
 space(lanceur, 10)
+
+
 
 # Min/Max de N
 vcmd = w.register(is_float)
@@ -657,6 +708,7 @@ nIncrVar = ttk.StringVar(value="1")
 nIncrEntry = ttk.Entry(frame_nIncr,validate='key',textvariable=nIncrVar, validatecommand=(vcmd, "%P"))
 nIncrEntry.pack(side='right', fill='x', expand=True)
 labelNIncr.pack(side='left')
+
 
 space(lanceur, 20)
 
@@ -736,6 +788,9 @@ new_function_button.pack(side='left', padx=10)
 export_function = ttk.Button(function_manager_frame, text="Exporter", command=lambda:print("Plus tard"))
 function_manager_frame.pack()
 
+export = ttk.Frame(function_manager_frame)
+export_function_button = ttk.Button(export, text="Exporter", command=lambda:exporter_fonction(act_func_dict()))
+
 #   #   # Quickload (scrollbar pour charger rapidement ce qui a été importé ou dans l'historique)
 
 # Scrollbar en elle meme
@@ -743,10 +798,13 @@ quick_load = ttk.Notebook(lanceur_et_quick_load)
 quick_load.pack(side='right', fill='both', expand=True)
 frame_quick_load = ttk.Frame(lanceur_et_quick_load)
 frame_quick_load_fav = ttk.Frame(lanceur_et_quick_load)
+frame_importee_quick_load = ttk.Frame(lanceur_et_quick_load)
 quick_load.add(frame_quick_load, text="Historique")
 quick_load.add(frame_quick_load_fav, text="Favoris")
+quick_load.add(frame_importee_quick_load, text="Imports")
 load_historique(frame_quick_load)
 load_favoris(frame_quick_load_fav)
+load_imports_ui(frame_importee_quick_load)
 
 def quick_historique_or_fav_selectionne(event):
     onglet = event.widget.nametowidget(event.widget.select())
@@ -767,11 +825,15 @@ quick_load.bind("<<NotebookTabChanged>>", quick_historique_or_fav_selectionne)
 switch_theme = ttk.Button(p_appli, text="Modifier theme", command=changer_theme)
 switch_theme.pack(fill="x")
 
+def debug_info() :
+    print("Profil actuel : ", get_user_profil())
+    print("Imports actuels : ", load_imports())
+    print("Historique actuel : ", list((k, historique_data[k]["name"]) for k in historique_data))
+    print("Favoris actuels : ", list((k,favoris_data[k]["name"]) for k in favoris_data))
 
+w.after(10000, debug_info) # Affiche le profil, les imports, l'historique et les favoris actuels dans la console toutes les 10 secondes (pour debug)
 
-
-
-#================= MAIN ========================
+#===================== [[ MAIN ]] ========================
 
 if __name__=="__main__" :
     # lancer_all_plot("n+x", -2, 2, nMin=-3,nMax=3, nIncr=0.01, pause=0.05, yMin=-2, yMax=2)
@@ -779,7 +841,9 @@ if __name__=="__main__" :
 
     w.protocol("WM_DELETE_WINDOW", on_close)
     profile_info = load_config()
+    imports = load_imports()
     load_historique(frame_quick_load)
+    load_imports_ui(frame_importee_quick_load)
     w.mainloop()
     
 
