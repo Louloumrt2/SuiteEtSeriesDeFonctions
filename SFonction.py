@@ -1,7 +1,7 @@
 import ttkbootstrap as ttk
 
 class SFonction():
-    def __init__(self,fonction="x/n", minN = "1", maxN = "100", incrN = "1", minX = "-20", maxX = "20", minY = "-10", maxY = "10", date = "", nom = "Suite/Série de fonction sans nom"):
+    def __init__(self,fonction="x/n", minN = "1", maxN = "100", incrN = "1", minX = "-20", maxX = "20", minY = "-10", maxY = "10", date = "", nbPoint = "100", nom = "Suite/Série de fonction sans nom"):
         self.fonction = fonction
         self.minN = minN
         self.maxN = maxN
@@ -11,6 +11,7 @@ class SFonction():
         self.minY = minY
         self.maxY = maxY
         self.date = date
+        self.nbPoint = nbPoint
         self.nom : ttk.StringVar = ttk.StringVar(value=nom)
     
     def __str__(self):
@@ -28,7 +29,7 @@ class SFonction():
 
         res["nom"] = self.nom.get() 
 
-        for key in ("fonction", "minN", "maxN", "incrN", "minX", "maxX", "minY", "maxY", "date") :
+        for key in ("fonction", "minN", "maxN", "incrN", "minX", "maxX", "minY", "maxY", "nbPoint", "date") :
             res[key] = getattr(self, key)
         
         return res

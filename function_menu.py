@@ -122,7 +122,7 @@ class Menu_SFonction:
         self.update_export_buttons_state()
         
     def get_selected_sfonctions(self) -> list[SFonction] :
-        return [editor.sfonction for editor in self.frame.winfo_children() if isinstance(editor, Function_Editor) and editor.selected.get()]
+        return [editor.sfonction for editor in self.inner_frame.winfo_children() if isinstance(editor, Function_Editor) and editor.selected.get()]
 
 
     def export_selected(self) :
