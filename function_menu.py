@@ -6,7 +6,7 @@ from input_dialog import Input_Dialog
 nothing = lambda : None # Fonction vide pour les callbacks par défaut
 
 class Function_Editor(ttk.Frame):
-    def __init__(self, master, sfonction : SFonction, select_callback = nothing, delete_callback = nothing, dupliquer_callback = nothing, export_callback = nothing) :
+    def __init__(self, master, sfonction : SFonction, select_callback = nothing, delete_callback = nothing, dupliquer_callback = nothing, export_callback = nothing, edit_callback=nothing, draw_callback = nothing) :
         super().__init__(master)
 
         self.sfonction = sfonction
@@ -15,11 +15,15 @@ class Function_Editor(ttk.Frame):
         self.editable_label = editable_sfunc_name(self, sfonction)
         self.editable_label.pack(fill="x", expand=True)
 
-        self.use_button = ttk.Button(self, text="Utiliser", command=nothing)
-        self.use_button.pack(side="left", padx=5, pady=5)
+        # self.use_button = ttk.Button(self, text="Editer", command=nothing)
+        # self.use_button.pack(side="left", padx=5, pady=5)
 
         # Le bouton de sélection est un toggle button qui permet de sélectionner/désélectionner la fonction pour l'exportation multiple
-        self.select_button = ttk.Checkbutton(self, text="Sélectionner", variable=self.selected, command=select_callback)
+        # self.select_button = ttk.Checkbutton(self, text="Sélectionner", variable=self.selected, command=select_callback)
+        # self.select_button.pack(side="left", padx=5, pady=5)
+
+        # Le bouton d'édition ouvre une fenêtre d'édition pour cette fonction
+        self.select_button = ttk.Button(self, text="Editer", command=edit_callback)
         self.select_button.pack(side="left", padx=5, pady=5)
 
         self.delete_button = ttk.Button(self, text="Supprimer", command=delete_callback)
@@ -31,7 +35,10 @@ class Function_Editor(ttk.Frame):
         self.export_button = ttk.Button(self, text="Exporter", command= export_callback)
         self.export_button.pack(side="left", padx=5, pady=5)
 
-        
+        self.export_button = ttk.Button(self, text="Visualiser", command= draw_callback)
+        self.export_button.pack(side="left", padx=5, pady=5)
+
+
 
 class Menu_SFonction:
     # Les Menu_SFonction permettent de regrouper une collection de fonctions en une liste déroulante.
@@ -54,7 +61,7 @@ class Menu_SFonction:
         self.export_all_button.pack(fill="x", padx=5, pady=5)
 
         self.import_button = ttk.Button(self.frame, text="Importer une suite/série de fonction", command=self.ask_import_sfonction)
-        self.import_button.pack(fill="x", padx=5, pady=5)
+        self.import_button.pack(fill="x", padx=10, pady=5)
 
         self.import_zip_tar = ttk.Frame(self.frame)
         self.import_zip_tar.pack(fill="x", padx=5, pady=5)
@@ -63,6 +70,9 @@ class Menu_SFonction:
         self.import_zip_button.pack(side="left", fill="x", expand=True, padx=5)
         self.import_tar_button = ttk.Button(self.import_zip_tar, text="Importer depuis un tar", command=self.ask_import_sfonctions_from_tar)
         self.import_tar_button.pack(side="left", fill="x", expand=True, padx=5)
+        # Ajout du bouton Ajouter une fonction
+        self.new_sfunc_button = ttk.Button(self.frame, text="➕ Nouvelle fonction", command=self.new_sfunc)
+        self.new_sfunc_button.pack(fill="x", expand=True, pady=5 , padx=10)
 
 
         self.scroll_frame = ttk.Scrollbar(self.frame)
@@ -83,11 +93,21 @@ class Menu_SFonction:
         self.canvas.bind_all("<MouseWheel>", on_mousewheel)
 
         self.update_export_buttons_state() # Désactiver les boutons d'exportation
-    
 
+        
     def add_to_selection(self, sfonction_editor : Function_Editor) :
         sfonction_editor.selected.set(True)
         self.update_export_buttons_state()
+    
+    def tracer(self, sfonction : SFonction) :
+        from launcher import Launcher
+        a = ttk.Toplevel()
+        l = Launcher(a)
+        l.load_sfun(sfonction)
+        l.pack(fill="both", expand=True)
+        l.start_visualisation()
+        a.mainloop()
+
 
     def update_export_buttons_state(self) :
         if (self.sfunction_manager is None) or (not self.sfonctions) :
@@ -105,7 +125,15 @@ class Menu_SFonction:
 
     def add_sfonction(self, sfonction : SFonction) :
         if sfonction not in self.sfonctions :
-            editor = Function_Editor(self.inner_frame, sfonction, select_callback=self.update_export_buttons_state, delete_callback= lambda sfun=sfonction : self.remove_sfonction(sfun), dupliquer_callback = lambda sfun=sfonction : self.add_sfonction(sfun.duplicate()), export_callback= lambda sfun=sfonction : self.export_one(sfun))
+            editor = Function_Editor(
+                self.inner_frame,
+                sfonction,
+                select_callback=self.update_export_buttons_state,
+                delete_callback= lambda sfun=sfonction : self.remove_sfonction(sfun),
+                dupliquer_callback = lambda sfun=sfonction : self.add_sfonction(sfun.duplicate()),
+                export_callback= lambda sfun=sfonction : self.export_one(sfun),
+                edit_callback=lambda sfun=sfonction: self.open_editor(sfun),
+                draw_callback=lambda sfun=sfonction : self.tracer(sfun))
             editor.pack(fill="x", expand=True, padx=5, pady=5)
             self.sfonctions.append(sfonction)
             self.update_export_buttons_state()
@@ -183,13 +211,26 @@ class Menu_SFonction:
             self.sfonctions.remove(sfonction)
         except ValueError : pass
 
+        # Tenter de supprimer du repertoire du manager
+        if self.sfunction_manager is not None :
+            for link, func in self.sfunction_manager.link_to_paths.items() :
+                if func == sfonction :
+                    del self.sfunction_manager.link_to_paths[link] # Supprimer le lien entre la fonction et son chemin d'exportation
+                    try :
+                        import os
+                        os.remove(self.sfunction_manager.directory+link) # en supposant que la fonction était déjà dans le dossier d'exportation, sinon ne supprime pas l'original
+                    except FileNotFoundError : ...  
+                    except Exception as e : ...   
+                    break
+
         self.update_export_buttons_state()
     
     def import_sfonction(self, path) :
         if self.sfunction_manager is not None :
             try :
                 new_func = self.sfunction_manager.import_from_path(path, ignore_directory=True)
-                self.add_sfonction(new_func)
+                if new_func :
+                    self.add_sfonction(new_func)
             except Exception as e :
                 from tkinter import messagebox
                 messagebox.showerror("Erreur", f"Une erreur est survenue lors de l'importation de la fonction : {e}")
@@ -215,8 +256,23 @@ class Menu_SFonction:
             file_path = filedialog.askopenfilename(title="Importer des fonctions depuis un tar", filetypes=[("Fichiers TAR", "*.tar")], initialdir="")
             if file_path :
                 self.sfunction_manager.import_from_tar(file_path, menu_aking=self) # on passe le menu actuel pour que les fonctions importées soient automatiquement ajoutées au menu
+    
+    def open_editor(self, sfonction : SFonction) :
+        from function_editor import SFunction_Editor
+        # Ouvre une nouvelle fenêtre d'édition pour la fonction donnée
+        print("tentative d'ouverture")
+        editor_window = ttk.Toplevel(self.frame)
+        editor_window.title(f"Éditeur de {sfonction.get_name()}")
+        editor = SFunction_Editor(editor_window, sfonction)
+        editor.pack(fill="both", expand=True)
 
+        editor_window.mainloop()
+        print("fermeture...")
 
+    def new_sfunc(self) :
+        new_s = SFonction()
+        self.add_sfonction(new_s)
+        self.open_editor(new_s)
 
 if __name__ == "__main__":
     root = ttk.Window()
@@ -226,12 +282,11 @@ if __name__ == "__main__":
     from json_export_manager import sfunction_manager
     manager = sfunction_manager(root, directory="auto_saves/")
     menu.add_manager(manager)
+    manager.import_all_from_directory()
 
-    sfunc1 = SFonction(nom="Suite de fonctions sans nom 1")
-    sfunc2 = SFonction(nom="Suite de fonctions sans nom 2")
+    for func in manager.all_sfunctions :
 
-    menu.add_sfonction(sfunc1)
-    menu.add_sfonction(sfunc2)
+        menu.add_sfonction(func)
 
     root.mainloop()
 

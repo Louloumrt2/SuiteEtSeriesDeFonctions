@@ -2,20 +2,7 @@ import ttkbootstrap as ttk
 
 class BoundsError(Exception): pass # créer une erreur qui servira si xMin >= xMax 
 
-def is_float(val):
-    if val in ("", ".", "-", "-."):
-        return True  # états intermédiaires acceptables
-    try:
-        float(val)
-        return True
-    except ValueError:
-        return False
-
-def to_float(val, default = 0) :
-    if val in ("", ".", "-", "-.") :
-        return default
-    else :
-        return float(val)
+from usefull_func import is_float, to_float
 
 
 

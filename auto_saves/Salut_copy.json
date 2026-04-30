@@ -1,0 +1,13 @@
+{
+    "nom": "Salut_copy",
+    "fonction": "x/n",
+    "minN": "1",
+    "maxN": "100",
+    "incrN": "1.0",
+    "minX": "-20",
+    "maxX": "20",
+    "minY": "-10",
+    "maxY": "10",
+    "nbPoint": "100",
+    "date": ""
+}

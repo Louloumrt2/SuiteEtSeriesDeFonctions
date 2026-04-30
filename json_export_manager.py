@@ -24,18 +24,23 @@ class sfunction_manager:
         
     
     def import_from_path(self, file_path, ignore_directory=False) -> SFonction | None :
-        with open((self.directory if not ignore_directory else "")+file_path, "r") as f :
-            new_func = json.load(f, object_hook=lambda d : SFonction(**d))
+        try :
+            with open((self.directory if not ignore_directory else "")+file_path, "r") as f :
+                new_func = json.load(f, object_hook=lambda d : SFonction(**d))
 
-            if file_path not in self.link_to_paths :
-                self.add_sfonction(new_func, file_path)
-            else :
-                new_func.set_name(new_func.get_name() + "_bis")
-                self.add_sfonction(new_func, new_func.get_name() + ".json")
+                if file_path not in self.link_to_paths :
+                    self.add_sfonction(new_func, file_path)
+                else :
+                    new_func.set_name(new_func.get_name() + "_bis")
+                    self.add_sfonction(new_func, new_func.get_name() + ".json")
 
-            return new_func
+                return new_func
+    
+        except : return None
 
     def export_to_json(self, sfunc : SFonction, file_path : str, ignore_directory=False) :
+        # sfunc.update_date_if_changed()
+
         if not ignore_directory :
             for link, func in self.link_to_paths.items() :
                 if func == sfunc :
@@ -53,6 +58,7 @@ class sfunction_manager:
     
     def export_all_to_json(self) :
         for link, sfunc in self.link_to_paths.items() :
+            # sfunc.update_date_if_changed()
             self.export_to_json(sfunc, sfunc.get_name() + ".json")
     
     def import_all_from_directory(self) :
@@ -65,6 +71,7 @@ class sfunction_manager:
         import zipfile
         with zipfile.ZipFile(path+zip_name+".zip", 'w') as zipf:
             for sfunc in sfonctions :
+                # sfunc.update_date_if_changed()
                 # Ecrire les données de la fonction dans un fichier temporaire
                 with open("temp", "w") as temp_file :
                     json.dump(sfunc.convert_to_dict(), temp_file, indent=4)
@@ -75,6 +82,7 @@ class sfunction_manager:
         import tarfile
         with tarfile.open(path+tar_name+".tar.gz", "w:gz") as tar:
             for sfunc in sfonctions :
+                # sfunc.update_date_if_changed()
                 # Ecrire les données de la fonction dans un fichier temporaire
                 with open("temp", "w") as temp_file :
                     json.dump(sfunc.convert_to_dict(), temp_file, indent=4)
@@ -83,29 +91,42 @@ class sfunction_manager:
     
     def import_from_zip(self, zip_path : str, menu_aking = None) :
         import zipfile
-        with zipfile.ZipFile(zip_path, 'r') as zipf:
-            for file in zipf.namelist() :
-                if file.endswith(".json") :
-                    with zipf.open(file) as f :
-                        new_func = json.load(f, object_hook=lambda d : SFonction(**d))
-                        self.add_sfonction(new_func, new_func.get_name() + ".json")
-                        
-                        if menu_aking is not None :
-                            menu_aking.add_sfonction(new_func)
+        try :
+            with zipfile.ZipFile(zip_path, 'r') as zipf:
+                for file in zipf.namelist() :
+                    if file.endswith(".json") :
+                        try :
+                            with zipf.open(file) as f :
+                                new_func = json.load(f, object_hook=lambda d : SFonction(**d))
+                                self.add_sfonction(new_func, new_func.get_name() + ".json")
+                                
+                                if menu_aking is not None :
+                                    menu_aking.add_sfonction(new_func)
+                        except :
+                            print("Erreur d'importation du document",file)
+        except : 
+            print("Erreur d'importation de "+zip_path)
                         
     
     def import_from_tar(self, tar_path : str, menu_aking = None) :
         import tarfile
-        with tarfile.open(tar_path, "r:gz") as tar:
-            for member in tar.getmembers() :
-                if member.name.endswith(".json") :
-                    f = tar.extractfile(member)
-                    if f is not None :
-                        new_func = json.load(f, object_hook=lambda d : SFonction(**d))
-                        self.add_sfonction(new_func, new_func.get_name() + ".json")
+        try : # 
+            with tarfile.open(tar_path, "r:gz") as tar:
+                for member in tar.getmembers() :
+                    if member.name.endswith(".json") :
+                        try :
+                            f = tar.extractfile(member)
+                            if f is not None :
+                                
+                                    new_func = json.load(f, object_hook=lambda d : SFonction(**d))
+                                    self.add_sfonction(new_func, new_func.get_name() + ".json")
 
-                        if menu_aking is not None :
-                            menu_aking.add_sfonction(new_func)
+                                    if menu_aking is not None :
+                                        menu_aking.add_sfonction(new_func)
+                        except :
+                            print("Erreur d'importation du document",member)
+                            
+        except : print("Erreur d'importation de "+tar_path)
     
 if __name__ == "__main__":
     app = ttk.Window()

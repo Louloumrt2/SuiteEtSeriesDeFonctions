@@ -34,14 +34,14 @@ class ParameterLinker(ttk.Frame) :
     
     def update_value(self) :
         value = self.entry.get()
-        print(self.parameter_name,":",value)
+        # print(self.parameter_name,":",value)
         try :
 
             if self.parameter_name == "nom" :
                 self.sfonction.set_name(value)
             else :
-                setattr(self.sfonction, self.parameter_name, value)
-                print("Updated", self.parameter_name, "to", self.sfonction.__dict__[self.parameter_name])
+                self.sfonction.change_var(self.parameter_name, value)
+                # print("Updated", self.parameter_name, "to", self.sfonction.__dict__[self.parameter_name])
             
         except BoundsError as e : print("Oh...", e)
     
@@ -122,6 +122,12 @@ class SFunction_Editor(ttk.Frame) :
 
         space(self, 10)
 
+        def on_closing():
+            self.update_all()
+            master.destroy()
+
+        master.protocol("WM_DELETE_WINDOW", on_closing)
+
 
 
     def update_all(self) :
@@ -163,11 +169,7 @@ if __name__ == "__main__":
     editor = SFunction_Editor(app, sfunc)
     
     # Update All avant de fermer l'application pour sauvegarder les modifications
-    def on_closing():
-        editor.update_all()
-        app.destroy()
-
-    app.protocol("WM_DELETE_WINDOW", on_closing)
+    
     app.mainloop()
     manager.export_to_json(sfunc,"modified_func.json")
 
